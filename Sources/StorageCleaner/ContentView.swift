@@ -46,10 +46,10 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup {
-                Label("Review only, nothing is deleted", systemImage: "lock.shield")
+                Label("Nothing moves without your approval", systemImage: "lock.shield")
                     .labelStyle(.titleAndIcon)
                     .foregroundStyle(.green)
-                    .help("This app only measures and builds a plan. It never deletes, moves or changes files.")
+                    .help("Files move to the Trash only after you confirm and macOS checks Touch ID or your password. The app never empties the Trash.")
                 Button { state.scanAll() } label: {
                     Label("Scan again", systemImage: "arrow.clockwise")
                 }
@@ -97,6 +97,7 @@ struct AccessBanner: View {
 
 struct SelectionBar: View {
     @EnvironmentObject var state: AppState
+    @State private var confirmTrash = false
 
     var body: some View {
         if !state.selection.isEmpty {
@@ -105,15 +106,23 @@ struct SelectionBar: View {
                 Text("Plan: \(state.selection.count) items, \(state.selectedBytes.bytesText)")
                     .font(.headline).monospacedDigit()
                 Spacer()
+                if state.working { ProgressView().controlSize(.small) }
                 Button("Clear plan") { state.selection.removeAll() }
                 Button("Copy plan") { state.copyPlan() }
-                Button("Save plan to Desktop") { state.savePlan() }
+                Button("Save plan") { state.savePlan() }
+                Button("Move to Trash") { confirmTrash = true }
                     .buttonStyle(.borderedProminent)
-                    .tint(.orange)
+                    .tint(.red)
+                    .disabled(state.working)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
             .background(.bar)
+            .confirmationDialog("Move \(state.selection.count) items to the Trash?", isPresented: $confirmTrash) {
+                Button("Continue", role: .destructive) { state.moveSelectionToTrash() }
+            } message: {
+                Text("macOS will ask for Touch ID or your password first. Items go to the Trash, so you can restore them until you empty it yourself. The app never empties the Trash.")
+            }
         }
     }
 }

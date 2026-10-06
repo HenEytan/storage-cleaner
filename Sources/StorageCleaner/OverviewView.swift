@@ -30,7 +30,7 @@ struct OverviewView: View {
                         Button("Add safe items to plan") { state.addSafeToPlan() }
                             .buttonStyle(.borderedProminent)
                             .disabled(state.scanning)
-                        Text("Then save the plan from the bar at the bottom. Nothing is deleted.")
+                        Text("Then use the bar at the bottom to save the plan or move it to the Trash.")
                             .font(.callout).foregroundStyle(.secondary)
                     }
                     .padding(.top, 6)

@@ -2,8 +2,8 @@ import Foundation
 import SwiftUI
 import AppKit
 
-/// App state. This app is review only: it measures, lets you build a cleanup plan,
-/// and saves that plan as a new text file. It never deletes, moves or changes your files.
+/// App state. The app measures and builds a cleanup plan. Files are only ever moved to the Trash,
+/// and only after you confirm in a dialog and macOS confirms you with Touch ID or your password.
 @MainActor
 final class AppState: ObservableObject {
     @Published var results: [String: LocationResult] = [:]
@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var largeScanned = false
     @Published var hasFullDiskAccess = Permissions.hasFullDiskAccess()
     @Published var alert: AppAlert? = nil
+    @Published var working = false
 
     /// Every listed item by path, used for totals and the plan.
     private var index: [String: Item] = [:]
@@ -172,6 +173,49 @@ final class AppState: ObservableObject {
         }
         Finder.reveal(url.path)
         alert = AppAlert(title: "Plan saved", message: "Saved to your Desktop as \(url.lastPathComponent). Nothing was deleted.")
+    }
+
+    // MARK: Move to Trash (only after macOS confirms it is you)
+
+    func moveSelectionToTrash() {
+        let paths = Array(selection)
+        guard !paths.isEmpty, !working else { return }
+        let reason = "move \(paths.count) item\(paths.count == 1 ? "" : "s") (\(selectedBytes.bytesText)) to the Trash"
+        Task {
+            let approved = await Deleter.authenticate(reason: reason)
+            guard approved else {
+                alert = AppAlert(title: "Nothing was moved", message: "macOS did not confirm it is you, so no files were touched.")
+                return
+            }
+            working = true
+            let outcome = await Task.detached(priority: .userInitiated) { Deleter.moveToTrash(paths) }.value
+            finishTrash(outcome)
+        }
+    }
+
+    private func finishTrash(_ outcome: Deleter.Outcome) {
+        working = false
+        let moved = Set(outcome.moved)
+        let bytes = outcome.moved.reduce(Int64(0)) { $0 + (index[$1]?.bytes ?? 0) }
+        selection.subtract(moved)
+        for id in Array(results.keys) {
+            guard var result = results[id] else { continue }
+            let removed = result.items.filter { moved.contains($0.path) }
+            guard !removed.isEmpty else { continue }
+            result.items.removeAll { moved.contains($0.path) }
+            result.total = max(0, result.total - removed.reduce(Int64(0)) { $0 + $1.bytes })
+            results[id] = result
+        }
+        largeFiles.removeAll { moved.contains($0.path) }
+        refreshDisk()
+        var message = moved.isEmpty
+            ? "No files were moved."
+            : "Moved \(moved.count) item\(moved.count == 1 ? "" : "s") (\(bytes.bytesText)) to the Trash. Nothing was deleted permanently, so you can restore anything from the Trash. The space is freed when you empty the Trash yourself."
+        if !outcome.errors.isEmpty {
+            message += "\n\nSkipped:\n" + outcome.errors.prefix(8).joined(separator: "\n")
+            if outcome.errors.count > 8 { message += "\nand \(outcome.errors.count - 8) more." }
+        }
+        alert = AppAlert(title: moved.isEmpty ? "Nothing was moved" : "Moved to the Trash", message: message)
     }
 
     func copyCommand(_ command: String) {
