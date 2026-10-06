@@ -1,0 +1,56 @@
+name: Build Mac app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Safety check (app must stay review only)
+        run: |
+          FORBIDDEN='trashItem|removeItem|moveItem|replaceItem|copyItem|unlink|rmdir|truncate|osascript|NSAppleScript|/bin/(zsh|bash|sh|rm|mv)|empty trash|recycle|"-delete"'
+          if grep -rnE "$FORBIDDEN" Sources | grep -v "SAFETY-ALLOWED"; then
+            echo "Found code that could delete or change files"; exit 1
+          fi
+          echo "Safety check passed"
+
+      - name: Build universal binary (Apple silicon and Intel)
+        run: |
+          swift --version
+          swift build -c release --arch arm64 --arch x86_64
+          echo "BIN=$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/StorageCleaner" >> $GITHUB_ENV
+
+      - name: Make icon
+        run: bash Scripts/make_icon.sh
+
+      - name: Assemble app bundle
+        run: |
+          APP="build/Storage Cleaner.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp "$BIN" "$APP/Contents/MacOS/StorageCleaner"
+          cp Resources/Info.plist "$APP/Contents/Info.plist"
+          cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+          codesign --force --sign - "$APP"
+          lipo -info "$APP/Contents/MacOS/StorageCleaner"
+          cd build && ditto -c -k --keepParent "Storage Cleaner.app" ../StorageCleaner-mac.zip
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StorageCleaner-mac
+          path: StorageCleaner-mac.zip
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v1.0.${{ github.run_number }}"
+          gh release create "$TAG" StorageCleaner-mac.zip --title "Storage Cleaner $TAG" --notes "Review only build. Unzip and move Storage Cleaner to Applications."
