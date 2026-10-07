@@ -6,14 +6,35 @@ struct OverviewView: View {
 
     private func sorted(_ risk: Risk) -> [Location] {
         Catalog.all
-            .filter { $0.risk == risk && state.results[$0.id]?.exists != false }
+            .filter { $0.risk == risk && $0.category != .map && state.results[$0.id]?.exists != false }
             .sorted { state.size(of: $0) > state.size(of: $1) }
+    }
+
+    private func whereSpaceIs() -> [Item] {
+        var items = state.results["home"]?.items ?? []
+        if let library = state.results["library"], library.total > 0 {
+            items.append(Item(path: NSHomeDirectory() + "/Library", name: "Library (app data and caches)", bytes: library.total, selectable: false))
+        }
+        if let apps = state.results["apps"], apps.total > 0 {
+            items.append(Item(path: "/Applications", name: "Applications", bytes: apps.total, selectable: false))
+        }
+        return items.sorted { $0.bytes > $1.bytes }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 DiskBarView()
+
+                let mapItems = whereSpaceIs()
+                if !mapItems.isEmpty {
+                    SectionBox(title: "Where your space is", subtitle: "Largest first. Library holds app data and caches, which macOS shows as System Data.") {
+                        let top = max(mapItems.first?.bytes ?? 1, 1)
+                        ForEach(Array(mapItems.prefix(12))) { item in
+                            MapRow(name: item.name, bytes: item.bytes, fraction: Double(item.bytes) / Double(top), path: item.path)
+                        }
+                    }
+                }
 
                 if state.scanning {
                     HStack(spacing: 10) {
@@ -132,6 +153,35 @@ struct SummaryRow: View {
                     .controlSize(.small)
             }
             .padding(.vertical, 8)
+            Divider()
+        }
+    }
+}
+
+struct MapRow: View {
+    let name: String
+    let bytes: Int64
+    let fraction: Double
+    let path: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(name).lineLimit(1).truncationMode(.middle)
+                    GeometryReader { geo in
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.7))
+                            .frame(width: max(3, geo.size.width * fraction))
+                    }
+                    .frame(height: 5)
+                }
+                Text(bytes.bytesText).monospacedDigit().fontWeight(.semibold).frame(width: 90, alignment: .trailing)
+                Button { Finder.reveal(path) } label: { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(.borderless)
+                    .help("Show in Finder")
+            }
+            .padding(.vertical, 7)
             Divider()
         }
     }

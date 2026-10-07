@@ -22,6 +22,7 @@ enum Risk {
 }
 
 enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
+    case map = "Where the space is"
     case developer = "Developer tools"
     case system = "System and caches"
     case files = "Your files"
@@ -31,6 +32,7 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
 
     var symbol: String {
         switch self {
+        case .map: return "chart.pie"
         case .developer: return "hammer"
         case .system: return "gearshape.2"
         case .files: return "folder"
@@ -40,6 +42,7 @@ enum StorageCategory: String, CaseIterable, Identifiable, Hashable {
 
     var blurb: String {
         switch self {
+        case .map: return "Your home folder and Library by size, so you can see where the space went. Nothing here can be selected."
         case .developer: return "Emulators, SDKs, build caches and Docker. Usually the largest hidden part of System Data on a developer Mac."
         case .system: return "Time Machine snapshots, caches, logs, device backups and app data."
         case .files: return "Your own files. Everything here needs a decision from you."

@@ -175,6 +175,24 @@ enum Catalog {
             settingsURL: "file:///System/Applications/Photos.app",
             settingsLabel: "Open Photos",
             showChildren: false
+        ),
+
+        // MARK: Where the space is (measured last, because it walks your whole home folder)
+
+        Location(
+            id: "home", title: "Home folder", category: .map, risk: .review,
+            paths: ["~"],
+            effect: "Every folder in your home folder, largest first. Library is measured separately.",
+            how: "Use the magnifier to open a folder in Finder, then check the matching card in the other sections or use Large files.",
+            action: .guide,
+            hideChildPrefixes: ["Library"]
+        ),
+        Location(
+            id: "library", title: "Library", category: .map, risk: .review,
+            paths: ["~/Library"],
+            effect: "App data, caches and containers. Most of what macOS calls System Data lives here.",
+            how: "The biggest folders here usually match the App caches, App data, App containers, Docker and Developer cards.",
+            action: .guide
         )
     ]
 

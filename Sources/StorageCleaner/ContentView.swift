@@ -20,7 +20,7 @@ struct ContentView: View {
                             Label(category.rawValue, systemImage: category.symbol)
                             Spacer()
                             let total = state.total(for: category)
-                            if total > 0 {
+                            if total > 0 && category != .map {
                                 Text(total.bytesText).font(.caption).foregroundStyle(.secondary).monospacedDigit()
                             }
                         }

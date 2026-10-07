@@ -53,18 +53,20 @@ enum DiskScanner {
                 continue
             }
 
-            // -a lists files as well as folders, -d 1 stops one level below the root.
-            let out = Shell.run("/usr/bin/du", ["-a", "-k", "-d", "1", root]).output
+            // List the folder's entries, then measure them all with one du call.
+            // (macOS du does not allow -a together with -d, so entries are passed explicitly.)
+            let names = ((try? fm.contentsOfDirectory(atPath: root)) ?? []).filter { name in
+                name != ".DS_Store" && name != ".localized"
+                    && !location.hideChildPrefixes.contains(where: { name.hasPrefix($0) })
+                    && !location.hideChildSuffixes.contains(where: { name.hasSuffix($0) })
+            }
+            guard !names.isEmpty else { continue }
+            let out = Shell.run("/usr/bin/du", ["-sk"] + names.map { root + "/" + $0 }).output
             for line in out.split(separator: "\n") {
                 guard let tab = line.firstIndex(of: "\t") else { continue }
                 let kb = Int64(line[..<tab].trimmingCharacters(in: .whitespaces)) ?? 0
                 let path = String(line[line.index(after: tab)...])
-                if path == root || path == root + "/" { continue }
-
                 let fileName = (path as NSString).lastPathComponent
-                if fileName == ".DS_Store" || fileName == ".localized" { continue }
-                if location.hideChildPrefixes.contains(where: { fileName.hasPrefix($0) }) { continue }
-                if location.hideChildSuffixes.contains(where: { fileName.hasSuffix($0) }) { continue }
 
                 let bytes = kb * 1024
                 result.total += bytes
