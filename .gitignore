@@ -4,3 +4,7 @@ build/
 *.xcodeproj/xcuserdata/
 .DS_Store
 Resources/AppIcon.icns
+
+# Claude Code personal files
+.claude/settings.local.json
+CLAUDE.local.md
