@@ -153,9 +153,29 @@ enum DiskScanner {
 
     // MARK: Large files
 
+    /// Directory extensions whose contents belong to one app or document. A file inside one
+    /// (an .app's binary, a VM's disk image, a Photos library's originals, a .git pack) must
+    /// never show up as a loose "large file": trashing it silently corrupts the whole package.
+    static let packageExtensions: Set<String> = [
+        "app", "appex", "framework", "bundle", "plugin", "kext", "xpc",
+        "photoslibrary", "photolibrary", "aplibrary", "migratedphotolibrary",
+        "musiclibrary", "tvlibrary", "imovielibrary", "fcpbundle", "logicx", "band",
+        "vmwarevm", "pvm", "utm", "vbox", "sparsebundle", "dmgpart",
+        "xcarchive", "xcodeproj", "xcworkspace", "playground", "lrlibrary", "lrdata", "rtfd", "pages", "numbers", "key"
+    ]
+    /// Directory names whose interiors are skipped the same way (version-control stores).
+    static let packageDirectoryNames: Set<String> = [".git", ".hg", ".svn"]
+
+    /// True when the scan must not descend into [url]: a package or a version-control store.
+    static func isPackageDirectory(_ url: URL, isPackage: Bool?) -> Bool {
+        if isPackage == true { return true }
+        if packageDirectoryNames.contains(url.lastPathComponent) { return true }
+        return packageExtensions.contains(url.pathExtension.lowercased())
+    }
+
     static func largeFiles(threshold: Int64) -> [Item] {
         let home = NSHomeDirectory()
-        let keys: [URLResourceKey] = [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+        let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .isPackageKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
         guard let enumerator = FileManager.default.enumerator(
             at: URL(fileURLWithPath: home),
             includingPropertiesForKeys: keys,
@@ -168,11 +188,16 @@ enum DiskScanner {
 
         for case let url as URL in enumerator {
             let path = url.path
-            if skipped.contains(where: { path.hasPrefix($0) }) || path.hasSuffix(".photoslibrary") {
+            if skipped.contains(where: { path.hasPrefix($0) }) {
                 enumerator.skipDescendants()
                 continue
             }
-            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
+            if values.isDirectory == true {
+                if isPackageDirectory(url, isPackage: values.isPackage) { enumerator.skipDescendants() }
+                continue
+            }
+            guard values.isRegularFile == true else { continue }
             let size = Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
             guard size >= threshold else { continue }
 

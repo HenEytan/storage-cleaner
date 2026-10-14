@@ -38,6 +38,10 @@ enum Deleter {
             home + "/Library/Mail",
             home + "/Library/Safari",
             home + "/Pictures/Photos Library.photoslibrary",
+            home + "/.ssh",
+            home + "/.config",
+            home + "/.gnupg",
+            home + "/.aws",
             "/System", "/Library", "/usr", "/bin", "/sbin", "/private"
         ]
         if blocked.contains(where: { standardized == $0 || standardized.hasPrefix($0 + "/") }) { return true }
